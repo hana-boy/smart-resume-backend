@@ -1,0 +1,10 @@
+services:
+  app:
+    container_name: smart-resume-java
+    build:
+      context: .
+      dockerfile: ./docker/java/Dockerfile
+    ports:
+      - "8081:8080"
+    platform: linux/amd64
+    depends_on: []
