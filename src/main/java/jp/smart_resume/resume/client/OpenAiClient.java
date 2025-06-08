@@ -1,43 +1,53 @@
 package jp.smart_resume.resume.client;
 
+import com.openai.client.OpenAIClient;
+import com.openai.client.okhttp.OpenAIOkHttpClient;
+import com.openai.models.chat.completions.ChatCompletion;
+import com.openai.models.chat.completions.ChatCompletionCreateParams;
+import com.openai.models.ChatModel;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Value;
-import org.springframework.http.*;
 import org.springframework.stereotype.Component;
-import org.springframework.web.client.RestTemplate;
-
-import java.util.*;
 
 @Slf4j
 @Component
 public class OpenAiClient {
 
-    @Value("${openai.api.key}")
-    private String apiKey;
+    private final OpenAIClient client;
 
-    private final RestTemplate restTemplate = new RestTemplate();
+    /**
+     * Constructor: initializes OpenAIClient with API key configured in application.properties/yml.
+     *
+     * @param apiKey the OpenAI API key
+     */
+    public OpenAiClient(@Value("${openai.api.key}") String apiKey) {
+        this.client = OpenAIOkHttpClient.builder()
+                .apiKey(apiKey)  // ここで認証キーを正しくセット
+                .build();
+    }
 
+    /**
+     * Sends the provided prompt to the GPT‑4.1‑nano model and returns the response content.
+     *
+     * @param prompt the Japanese prompt for generating a resume
+     * @return the generated resume content, or a fallback error message
+     */
     public String callOpenAi(String prompt) {
-        String uri = "https://api.openai.com/v1/chat/completions";
-
-        Map<String, Object> body = new HashMap<>();
-        body.put("model", "gpt-4o");
-        body.put("messages", List.of(
-                Map.of("role", "system", "content", "あなたは日本語の職務経歴書を作るエキスパートです。"),
-                Map.of("role", "user", "content", prompt)
-        ));
-        body.put("temperature", 0.7);
-
-        HttpHeaders headers = new HttpHeaders();
-        headers.setContentType(MediaType.APPLICATION_JSON);
-        headers.setBearerAuth(apiKey);
-
-        HttpEntity<Map<String, Object>> entity = new HttpEntity<>(body, headers);
-
         try {
-            ResponseEntity<Map> response = restTemplate.postForEntity(uri, entity, Map.class);
-            List<Map<String, Object>> choices = (List<Map<String, Object>>) response.getBody().get("choices");
-            return (String) ((Map<String, Object>) choices.get(0).get("message")).get("content");
+            var params = ChatCompletionCreateParams.builder()
+                    .model(ChatModel.GPT_4_1_NANO)
+                    .addSystemMessage("あなたは日本語の職務経歴書を作るエキスパートです。")
+                    .addUserMessage(prompt)
+                    .temperature(0.7)
+                    .build();
+
+            ChatCompletion result = client.chat().completions().create(params);
+
+            return result.choices()
+                    .get(0)
+                    .message()
+                    .content()
+                    .orElse("OpenAI API returned no content.");
         } catch (Exception e) {
             log.error("OpenAI API call failed", e);
             return "OpenAI APIとの通信に失敗しました。";
